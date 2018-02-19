@@ -53,18 +53,21 @@ update: (output, domEl) ->
   resArr = JSON.parse(output)[0]
   holdingsArray = JSON.parse(output)[1]
   fmtDate = @getDate()
-  portfolio = 0
+  portfolio = {value: 0, cost_basis: 0, html: "", color: ""}
 
   for coin, attrs of holdingsArray
       coinRes = @findCoinResults(resArr, coin)
       box = $(domEl).find('.' + attrs.ticker.toLowerCase())
       info = @getPriceInfo(coinRes, attrs)
-      portfolio += info.value
+      portfolio.value += info.value
+      portfolio.cost_basis += if (coin.cost_basis == undefined) then 0 else coin.cost_basis
       @updateBox(box, info.html, fmtDate)
 
   # update 'total' portfolio value rounded to cents
   totalBox = $(domEl).find('.total')
-  @updateBox(totalBox, @roundAmount(portfolio, 2), fmtDate)
+  portfolio.color = if (portfolio.value >= portfolio.cost_basis) then 'green' else 'red'
+  portfolio.html = "<div class='value #{portfolio.color}'>$ #{@roundAmount(portfolio.value, 2)}</div>"
+  @updateBox(totalBox, portfolio.html, fmtDate)
 
 ###
     Finds a coin to generate data for from json response
@@ -113,8 +116,12 @@ roundAmount: (amount, precision) ->
 getPriceInfo: (json, coin) ->
   price = json['price_usd']
   change = json['percent_change_1h']
-  color = if (change >= 0) then 'green' else 'red'
   value = coin.holdings * price
+  if coin.cost_basis == undefined
+      color = if (change >= 0) then 'green' else 'red'
+  else
+      color = if (value > coin.cost_basis) then 'green' else 'red'
+
 
   return {html: """
     <div class='price default'>$ #{@roundAmount(price, coin.round)}<div>
@@ -123,10 +130,9 @@ getPriceInfo: (json, coin) ->
     <div class='currency default'>USD</div>
   """, value: value}
 
-
 style: """
-  bottom: 5%
-  left: 91%
+  bottom: 0.5%
+  right: 0.5%
   color: white
   font-family: 'Helvetica Neue'
   font-weight: 100
@@ -134,6 +140,7 @@ style: """
   margin: 5px
   width: 200px
   text-align: center
+  background-color: black
   .box
     padding: 3px
     border: 1px solid rgba(#FFF, 50%)
